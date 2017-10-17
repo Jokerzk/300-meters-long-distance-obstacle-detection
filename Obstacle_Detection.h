@@ -6,7 +6,7 @@
 #include "Matrix.h"
 
 #define SCORECOL 4
-#define SCOREROW 4
+#define SCOREROW 3
 using namespace std;
 using namespace cv;
 

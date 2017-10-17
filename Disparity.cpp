@@ -160,20 +160,22 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 				max_x = i;
 				max_y = j;
 			}
-			cout << disp << "\t" << endl;
+
 
 		}
 	}
-	cout << max_disp << "\t" << max_x << "\t" << max_y << endl;
+	//cout << max_disp << "\t" << max_x << "\t" << max_y << endl;
 
 	cv::Mat disparity_mat;
 
 	cv::normalize(disparity_map, disparity_mat, 0, 255, CV_MINMAX);
 	disparity_mat.convertTo(disparity_mat, CV_8UC1);
 	//cv::medianBlur(disparity_mat, disparity_mat, 7);
-	imshow("disparity", disparity_mat);
+	disparity_mat.convertTo(disparity_mat, CV_32FC1);
+	cv::normalize(disparity_mat, disparity_mat, 0, 1, CV_MINMAX);
+	/*imshow("disparity", disparity_mat);
 	waitKey(0);
-	destroyWindow("disparity");
+	destroyWindow("disparity");*/
 
 	return disparity_map;
 }

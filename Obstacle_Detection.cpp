@@ -106,9 +106,9 @@ int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap)
 	cv::Mat disp_mat;
 	disparity.convertTo(disp_mat,CV_8UC1);
 	cv::normalize(disp_mat, disp_mat, 0, 255, CV_MINMAX);
-	imshow("disparity", disp_mat);
+	/*imshow("disparity", disp_mat);
 	waitKey(0);
-	destroyWindow("disparity");
+	destroyWindow("disparity");*/
 	float disp_left[6][4] = { 0 }, disp_right[6][4] = { 0 }, obsdist_left = 0, obsdist_right = 0;
 	for (int i = 0; i < 8; i++)
 	{
@@ -153,5 +153,4 @@ int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap)
 		return 0;
 
 }
-
 

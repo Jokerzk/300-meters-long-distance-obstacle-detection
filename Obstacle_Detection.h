@@ -10,5 +10,5 @@
 using namespace std;
 using namespace cv;
 
-int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap);
+int obstacle_detection_cal_C(float distance_delta_ratio, float disparitymap[6][80]);
 #endif

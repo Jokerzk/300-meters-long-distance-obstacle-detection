@@ -1,16 +1,16 @@
 #include "Disparity.h"
-#ifdef Movidius
-void calc_disparity_map(float prev_mat[120][480], float curr_mat[120][480], float disparity_map[40][220])
+
+void calc_disparity_map_C(float prev_mat[26][240], float curr_mat[26][240], float disparity_map[6][80])
 {
-	int height = 120;
-	int width = 480;
+	int height = 26;
+	int width = 240;
 	int half_w = width / 2;
 	int winsize = 21;
 	int half_win = 10;
 
 	for (int i = half_win; i < height - half_win; ++i)
 	{
-		for (int j = half_win; j < width - half_win; ++j)
+		for (int j = 80; j < 160; ++j)
 		{
 			int disp = 0;
 			float min_sad = 9999;
@@ -37,17 +37,8 @@ void calc_disparity_map(float prev_mat[120][480], float curr_mat[120][480], floa
 							minsec_sad = min_sad;
 							min_sad = sad;
 							disp = max(k, 0);
-							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
-							{
-							disp = max(k, 0);
-							}
-							else
-							{
-							disp = 0;
-							}*/
 						}
 					}
-					//cout << min_sad << endl;
 				}
 				else
 				{
@@ -67,31 +58,15 @@ void calc_disparity_map(float prev_mat[120][480], float curr_mat[120][480], floa
 							minsec_sad = min_sad;
 							min_sad = sad;
 							disp = max(k, 0);
-							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
-							{
-							disp = max(k, 0);
-							}
-							else
-							{
-							disp = 0;
-							}*/
 						}
 					}
 				}
 			}
-			disparity_map[i][j] = disp;
-			if (disp >= max_disp)
-			{
-				max_disp = disp;
-				max_x = i;
-				max_y = j;
-			}
-			cout << disp << "\t" << endl;
-
+			disparity_map[i - half_win][j - 80] = disp;
 		}
 	}
 }
-#endif
+#ifdef OPENCV
 cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 {
 	int height = prev_mat.rows;
@@ -199,3 +174,4 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 
 	return disparity_map;
 }
+#endif

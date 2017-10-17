@@ -13,5 +13,5 @@
 using namespace std;
 using namespace cv;
 
-cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat);
+void calc_disparity_map_C(float prev_mat[26][240], float curr_mat[26][240], float disparity_map[6][80]);
 #endif

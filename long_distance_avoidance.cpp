@@ -5,7 +5,7 @@
 int IMGHEIGHT;
 int IMGWIDTH;
 
-cv::Mat get_Rmatrix_from_Quaternion(float Qarray[4])
+cv::Mat get_Rmatrix_from_Quaternion(vector<float> Qarray)
 {
 	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar(0));
 
@@ -24,7 +24,7 @@ cv::Mat get_Rmatrix_from_Quaternion(float Qarray[4])
 	return rotation_matrix;
 }
 
-Vec3f GetEulerAngle(float Qarray[4])
+Vec3f GetEulerAngle(vector<float> Qarray)
 {
 	Vec3f EulerAngle;
 

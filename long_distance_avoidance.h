@@ -11,6 +11,7 @@
 #include <math.h>  
 #include <opencv2/opencv.hpp>
 #include <time.h>
+#include<io.h>
 
 using namespace std;
 using namespace cv;
@@ -19,8 +20,8 @@ using namespace cv;
 #define WndWidth  21
 #define CODEWIDTH 80
 
-cv::Mat get_Rmatrix_from_Quaternion(float Qarray[4]);
-Vec3f GetEulerAngle(float Qarray[4]);
+cv::Mat get_Rmatrix_from_Quaternion(vector<float> Qarray);
+Vec3f GetEulerAngle(vector<float> Qarray);
 cv::Mat Eular2Rot(Vec3f EulerAngle);
 cv::Mat rot2euler(const cv::Mat & rotationMatrix);
 

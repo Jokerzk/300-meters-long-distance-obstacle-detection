@@ -1,8 +1,8 @@
 #include "Obstacle_Detection.h"
 
-int disp_10_300[10] = { 0.5, 0.833, 1.167, 1.5, 1.833, 2.167, 2.5, 2.833, 3.167, 3.5 };
-int disp_20_300[10] = { 1, 1.67, 2.33, 3, 3.67, 4.33, 5, 5.67, 6.33, 7 };
-int disp_30_300[10] = { 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5 };
+float disp_10_300[10] = { 5, 8.33, 11.67, 15, 18.33, 21.67, 25, 28.33, 31.67, 35 };
+float disp_20_300[10] = { 1, 1.67, 2.33, 3, 3.67, 4.33, 5, 5.67, 6.33, 7 };
+float disp_30_300[10] = { 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5 };
 
 #ifdef C
 int obstacle_detection_cal(float distance_delta, float disparitymap[40][220])
@@ -100,22 +100,29 @@ bool GetScore(float disp_left[10], float disp_right[10])
 }
 #endif
 
-int obstacle_detection_cal(float distance_delta, cv::Mat disparitymap)
+int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap)
 {
-	float disp_left[11] = { 0 }, disp_right[11] = { 0 }, obsdist_left = 0, obsdist_right = 0;
-	Mat sub_mat = Mat(1, disparitymap.cols, CV_32FC1, Scalar(0));
-	for (int i = 0; i < 22; i++)
+	cv::Mat disparity = disparitymap(Rect(80,10,80,6));
+	cv::Mat disp_mat;
+	disparity.convertTo(disp_mat,CV_8UC1);
+	cv::normalize(disp_mat, disp_mat, 0, 255, CV_MINMAX);
+	imshow("disparity", disp_mat);
+	waitKey(0);
+	destroyWindow("disparity");
+	float disp_left[6][4] = { 0 }, disp_right[6][4] = { 0 }, obsdist_left = 0, obsdist_right = 0;
+	for (int i = 0; i < 8; i++)
 	{
-		for (int j = 0; j < disparitymap.rows; j += 1)
+		for (int j = 0; j < disparity.rows; j += 1)
 		{
 			for (int k = i * 10; k < (i + 1) * 10; k++)
 			{
-				if (i <= 10)
+				// << disparity.at<float>(j, k) << endl;
+				if (i <= 3)
 				{
-					disp_left[10 - i] += disparitymap.at<char>(j, k);
+					disp_left[j][3 - i] += disparity.at<float>(j, k);
 				}
 				else
-					disp_right[i - 11] += disparitymap.at<char>(j, k);
+					disp_right[j][i - 4] += disparity.at<float>(j, k);
 
 			}
 		}
@@ -125,53 +132,25 @@ int obstacle_detection_cal(float distance_delta, cv::Mat disparitymap)
 	printf("left_%f\t", disp_left[i]);
 	printf("right_%f\n", disp_right[i]);
 	}*/
-	int ini_left = 0, ini_right = 0, coutleft = 0, coutright = 0;
-	for (int i = 0; i < 11; i++)
+	int count_col = 0, count_row = 0;
+	for (int i = 0; i < 6; i++)
 	{
-		if (disp_left[i] - disp_left[i + 1] == 0)
-			continue;
-		else if (disp_left[i] - disp_left[i + 1] < 0)
+		count_col = 0;
+		for (int j = 1; j < 4; j++)
 		{
-			obsdist_left += disp_left[i];
-			coutleft++;
-			if (coutleft == 1)
-			{
-				ini_left = i;
-			}
-
+			if (disp_left[i][j] >= distance_delta_ratio*disp_10_300[j-1])
+				count_col++;
+			if (disp_right[i][j] >=distance_delta_ratio*disp_10_300[j-1])
+				count_col++;
 		}
-		else
-			break;
+		if (count_col >= SCORECOL)
+			count_row++;
 	}
-	for (int i = 0; i < 11; i++)
-	{
-		if (disp_right[i] - disp_right[i + 1] == 0)
-			continue;
-		else if (disp_right[i] - disp_right[i + 1] < 0)
-		{
-			obsdist_right += disp_right[i];
-			coutright++;
-			if (coutright == 1)
-			{
-				ini_right = i;
-			}
 
-		}
-		else
-			break;
-	}
-	obsdist_left = distance_delta*(1 - (disp_left[coutleft / 2 + ini_left] / 400 / (max((coutleft / 2 + ini_left), 1) * 10 + 5))) / (disp_left[coutleft / 2 + ini_left] / 400 / (max((coutleft / 2 + ini_left), 1) * 10 + 5));
-	obsdist_right = distance_delta*(1 - (disp_right[coutright / 2 + ini_right] / 400 / (max((coutright / 2 + ini_right), 1) * 10 + 5))) / (disp_right[coutright / 2 + ini_right] / 400 / (max((coutright / 2 + ini_right), 1) * 10 + 5));
-
-	if (obsdist_left < SECUREDIST || obsdist_right < SECUREDIST)
-	{
-		printf("Warning : Obstacles within 300 meters! \n");
+	if (count_row >= SCOREROW)
 		return 1;
-	}
 	else
-	{
-		printf("Security: There is no obstacle within 300 meters! \n");
 		return 0;
-	}
+
 }
 

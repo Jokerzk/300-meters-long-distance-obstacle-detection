@@ -74,8 +74,9 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 {
 	int height = prev_mat.rows;
 	int width = prev_mat.cols;
+	int max_disp = 1, max_x = 0, max_y = 0;
 
-	cv::Mat disparity_map = cv::Mat(height, width, CV_32FC1, Scalar(-1));
+	cv::Mat disparity_map = cv::Mat(height, width, CV_32FC1, Scalar(0));
 
 	int half_w = width / 2;
 	int winsize = 21;
@@ -85,9 +86,10 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 	{
 		for (int j = half_win; j < width - half_win; ++j)
 		{
-			int disp = -1;
+			int disp = 0;
 			float min_sad = 9999;
-			if (prev_mat.at<float>(i, j) >0.1)
+			float minsec_sad = 9999;
+			if (prev_mat.at<float>(i, j) >0.0)
 			{
 				float ratio = abs(j - half_w) / (float)half_w;
 				int max_disparity = 100 * ratio;
@@ -106,17 +108,20 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 						}
 						if (sad < min_sad)
 						{
+							minsec_sad = min_sad;
 							min_sad = sad;
-							if (min_sad < SAD_TH)
+							disp = max(k, 0);
+							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
 							{
-								disp = max(k, 1);
+								disp = max(k, 0);
 							}
 							else
 							{
-								disp = -1;
-							}
+								disp = 0;
+							}*/
 						}
 					}
+					//cout << min_sad << endl;
 				}
 				else
 				{
@@ -133,28 +138,44 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 						}
 						if (sad < min_sad)
 						{
+							minsec_sad = min_sad;
 							min_sad = sad;
-							if (min_sad < SAD_TH)
+							disp = max(k, 0);
+							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
 							{
-								disp = max(k, 1);
+								disp = max(k, 0);
 							}
 							else
 							{
-								disp = -1;
-							}
+								disp = 0;
+							}*/
 						}
 					}
 				}
 			}
 			disparity_map.at<float>(i, j) = disp;
+			if (disp >= max_disp)
+			{
+				max_disp = disp;
+				max_x = i;
+				max_y = j;
+			}
+
+
 		}
 	}
-	cv::normalize(disparity_map, disparity_map, 255, 0, CV_MINMAX);
-	disparity_map.convertTo(disparity_map, CV_8UC1);
-	cv::medianBlur(disparity_map, disparity_map, 7);
-	disparity_map.convertTo(disparity_map, CV_32FC1);
-	cv::normalize(disparity_map, disparity_map, 1, 0, CV_MINMAX);
-	cv::imshow("disparity", disparity_map);
-	waitKey();
+	//cout << max_disp << "\t" << max_x << "\t" << max_y << endl;
+
+	cv::Mat disparity_mat;
+
+	cv::normalize(disparity_map, disparity_mat, 0, 255, CV_MINMAX);
+	disparity_mat.convertTo(disparity_mat, CV_8UC1);
+	//cv::medianBlur(disparity_mat, disparity_mat, 7);
+	//disparity_mat.convertTo(disparity_mat, CV_32FC1);
+	//cv::normalize(disparity_mat, disparity_mat, 0, 1, CV_MINMAX);
+	imshow("disparity", disparity_mat);
+	waitKey(0);
+	destroyWindow("disparity");
+
 	return disparity_map;
 }

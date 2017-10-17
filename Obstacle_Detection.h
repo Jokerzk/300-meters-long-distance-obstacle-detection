@@ -5,10 +5,10 @@
 
 #include "Matrix.h"
 
-#define SECUREDIST 300
-#define SCORE 4
+#define SCORECOL 4
+#define SCOREROW 4
 using namespace std;
 using namespace cv;
 
-int obstacle_detection_cal(float distance_delta, cv::Mat disparitymap);
+int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap);
 #endif

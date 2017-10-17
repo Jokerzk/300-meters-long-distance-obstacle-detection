@@ -2,6 +2,7 @@
 #define _MATRIX_H_
 
 #include <math.h>
+#include <algorithm>
 #include <opencv2/opencv.hpp>
 
 using namespace std;

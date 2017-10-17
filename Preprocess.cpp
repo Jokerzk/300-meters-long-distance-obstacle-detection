@@ -151,7 +151,7 @@ void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool
 
 #endif
 
-int getimage(string str_prev, string str_curr, cv::Mat &img_prev, cv::Mat &img_curr)
+int getimage(string str_prev, vector <string> str_curr, cv::Mat &img_prev, vector<Mat> &img_curr)
 {
 	ifstream reader;
 
@@ -172,23 +172,25 @@ int getimage(string str_prev, string str_curr, cv::Mat &img_prev, cv::Mat &img_c
 	}
 	frame.copyTo(img_prev);
 	reader.close();
-
-	reader.open(str_curr, ios_base::binary | ios_base::in);
-	if (!reader.good())
+	for (int i = 0; i < str_curr.size(); i++)
 	{
-		return 0;
-	}
-	for (int i = 0; i< 480; i++)
-	{
-		for (int j = 0; j < 640; ++j)
+		reader.open(str_curr[i], ios_base::binary | ios_base::in);
+		if (!reader.good())
 		{
-			char temp;
-			reader.read((char*)&temp, sizeof(char));
-			frame.at<unsigned char>(i, j) = temp;
+			return 0;
 		}
+		for (int i = 0; i< 480; i++)
+		{
+			for (int j = 0; j < 640; ++j)
+			{
+				char temp;
+				reader.read((char*)&temp, sizeof(char));
+				frame.at<unsigned char>(i, j) = temp;
+			}
+		}
+		frame.copyTo(img_curr[i]);
+		reader.close();
 	}
-	frame.copyTo(img_curr);
-	reader.close();
 	return 0;
 }
 
@@ -278,102 +280,118 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 	
 	preprocessimg_mat(newimg0, mat_prev);
 	preprocessimg_mat(newimg2, mat_curr);
-
-	
 	
 }
 
 void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 {
-	cv::blur(src_mat, src_mat, cv::Size(3, 11));
+	/*cv::blur(src_mat, src_mat, cv::Size(3, 11));
 	cv::Size small_sz;
 	small_sz.height = src_mat.rows / 3;
 	small_sz.width = src_mat.cols;
 	cv::resize(src_mat, dst, small_sz);
 	dst.convertTo(dst, CV_32FC1);
+	cv::normalize(dst, dst, 1, 0, CV_MINMAX);*/
+
+	Mat dst_x, dst_y; 
+	blur(src_mat, src_mat, cv::Size(3, 11));
+	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 5);
+	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 5);
+	dst = Mat(src_mat.rows, src_mat.cols,CV_32FC1);
+	for (int i = 0; i < src_mat.rows; ++i)
+	{
+		for (int j = 0; j < src_mat.cols; ++j)
+		{
+			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j));
+		}
+	}
+	cv::Size small_sz;
+	small_sz.height = dst.rows / 3;
+	small_sz.width = dst.cols;
+	cv::resize(dst, dst, small_sz);
 	cv::normalize(dst, dst, 1, 0, CV_MINMAX);
 
 }
 
-int ORB_Algorithm(cv::Mat imgA, cv::Mat imgB)
-{
-	imshow("imgA", imgA);
-	imshow("imgB", imgB);
-	waitKey();
-	ORB orb;
-	vector<KeyPoint> keyPointsA, keyPointsB;
-	Mat descriptorsA, descriptorsB;
-	orb(imgA, Mat(), keyPointsA, descriptorsA);
-	orb(imgB, Mat(), keyPointsB, descriptorsB);
-	drawKeypoints(imgA, keyPointsA, imgA, Scalar::all(-1));
-	drawKeypoints(imgB, keyPointsB, imgB, Scalar::all(-1));
-	cv::imshow("keypointsA", imgA);
-	cv::imshow("keypointsB", imgB);
-	waitKey();
-	//--Get discriptors of imgs
-	BruteForceMatcher<Hamming> matcher;
-	vector<DMatch> matches;
-
-	matcher.match(descriptorsA, descriptorsB, matches);
-	//--Return the minimum distances of pairs
-	
-	double max_dist = 0;
-	double min_dist = 100;
-	//-- Quick calculation of max and min distances between keypoints
-	for (int i = 0; i<descriptorsA.rows; i++)
-	{
-		double dist = matches[i].distance;
-		if (dist < min_dist) min_dist = dist;
-		if (dist > max_dist) max_dist = dist;
-	}
-	printf("-- Max dist : %f \n", max_dist);
-	printf("-- Min dist : %f \n", min_dist);
-	//-- Draw only "good" matches (i.e. whose distance is less than 0.6*max_dist )
-
-	vector<int> queryIdxs(matches.size()), trainIdxs(matches.size());
-	for (size_t i = 0; i < matches.size(); i++)
-	{
-		queryIdxs[i] = matches[i].queryIdx;
-		trainIdxs[i] = matches[i].trainIdx;
-	}
-
-	Mat H12, H13;   //单应矩阵  
-	vector<Point2f> points1; KeyPoint::convert(keyPointsA, points1, queryIdxs);
-	vector<Point2f> points2; KeyPoint::convert(keyPointsB, points2, trainIdxs);
-	int ransacReprojThreshold = 10;  //拒绝阈值  
-	H12 = findHomography(Mat(points1), Mat(points2), CV_RANSAC, ransacReprojThreshold);//根据匹配点获得单应矩阵
-	H13 = findFundamentalMat(Mat(points1), Mat(points2), FM_RANSAC);
-	cout << H13 << endl;
-	vector<DMatch> matchesMask;
-	Mat points1t;
-	perspectiveTransform(Mat(points1), points1t, H12);//利用单应矩阵透视变换得到图1中各点的MASK
-	for (size_t i = 0; i < points1.size(); i++)  //保存‘内点’  
-	{
-		if (norm(points2[i] - points1t.at<Point2f>((int)i, 0)) <= ransacReprojThreshold) //当图2中之前找的匹配点与MASK的灰度值小于给定阈值时，标记为内点
-		{
-			matchesMask.push_back(matches[i]);
-		}
-	}
-	Mat img_matches_ransac;
-	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
-		matchesMask, img_matches_ransac, Scalar::all(-1), Scalar::all(-1),
-		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-	cv::imshow("ORB_match_ransac", img_matches_ransac);
-
-	vector<DMatch> good_matches;
-	for (int i = 0; i<descriptorsA.rows; i++)
-	{
-		if (matches[i].distance < 0.6*max_dist)
-		{
-			good_matches.push_back(matches[i]);
-		}
-	}
-
-	Mat img_matches;
-	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
-		good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
-		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-	cv::imshow("ORB_match", img_matches);
-	cv::waitKey();
-	return 0;
-}
+//int ORB_Algorithm(cv::Mat imgA, cv::Mat imgB)
+//{
+//	imshow("imgA", imgA);
+//	imshow("imgB", imgB);
+//	waitKey();
+//	ORB orb;
+//	vector<KeyPoint> keyPointsA, keyPointsB;
+//	Mat descriptorsA, descriptorsB;
+//	orb(imgA, Mat(), keyPointsA, descriptorsA);
+//	orb(imgB, Mat(), keyPointsB, descriptorsB);
+//	drawKeypoints(imgA, keyPointsA, imgA, Scalar::all(-1));
+//	drawKeypoints(imgB, keyPointsB, imgB, Scalar::all(-1));
+//	cv::imshow("keypointsA", imgA);
+//	cv::imshow("keypointsB", imgB);
+//	waitKey();
+//	//--Get discriptors of imgs
+//	BruteForceMatcher<Hamming> matcher;
+//	vector<DMatch> matches;
+//
+//	matcher.match(descriptorsA, descriptorsB, matches);
+//	//--Return the minimum distances of pairs
+//	
+//	double max_dist = 0;
+//	double min_dist = 100;
+//	//-- Quick calculation of max and min distances between keypoints
+//	for (int i = 0; i<descriptorsA.rows; i++)
+//	{
+//		double dist = matches[i].distance;
+//		if (dist < min_dist) min_dist = dist;
+//		if (dist > max_dist) max_dist = dist;
+//	}
+//	printf("-- Max dist : %f \n", max_dist);
+//	printf("-- Min dist : %f \n", min_dist);
+//	//-- Draw only "good" matches (i.e. whose distance is less than 0.6*max_dist )
+//
+//	vector<int> queryIdxs(matches.size()), trainIdxs(matches.size());
+//	for (size_t i = 0; i < matches.size(); i++)
+//	{
+//		queryIdxs[i] = matches[i].queryIdx;
+//		trainIdxs[i] = matches[i].trainIdx;
+//	}
+//
+//	Mat H12, H13;   //单应矩阵  
+//	vector<Point2f> points1; KeyPoint::convert(keyPointsA, points1, queryIdxs);
+//	vector<Point2f> points2; KeyPoint::convert(keyPointsB, points2, trainIdxs);
+//	int ransacReprojThreshold = 10;  //拒绝阈值  
+//	H12 = findHomography(Mat(points1), Mat(points2), CV_RANSAC, ransacReprojThreshold);//根据匹配点获得单应矩阵
+//	H13 = findFundamentalMat(Mat(points1), Mat(points2), FM_RANSAC);
+//	cout << H13 << endl;
+//	vector<DMatch> matchesMask;
+//	Mat points1t;
+//	perspectiveTransform(Mat(points1), points1t, H12);//利用单应矩阵透视变换得到图1中各点的MASK
+//	for (size_t i = 0; i < points1.size(); i++)  //保存‘内点’  
+//	{
+//		if (norm(points2[i] - points1t.at<Point2f>((int)i, 0)) <= ransacReprojThreshold) //当图2中之前找的匹配点与MASK的灰度值小于给定阈值时，标记为内点
+//		{
+//			matchesMask.push_back(matches[i]);
+//		}
+//	}
+//	Mat img_matches_ransac;
+//	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
+//		matchesMask, img_matches_ransac, Scalar::all(-1), Scalar::all(-1),
+//		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+//	cv::imshow("ORB_match_ransac", img_matches_ransac);
+//
+//	vector<DMatch> good_matches;
+//	for (int i = 0; i<descriptorsA.rows; i++)
+//	{
+//		if (matches[i].distance < 0.6*max_dist)
+//		{
+//			good_matches.push_back(matches[i]);
+//		}
+//	}
+//
+//	Mat img_matches;
+//	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
+//		good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
+//		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+//	cv::imshow("ORB_match", img_matches);
+//	cv::waitKey();
+//	return 0;
+//}

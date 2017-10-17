@@ -5,7 +5,8 @@
 
 
 #define WINDOW_NAME "imagealine"
-//#define CALIB
+#define CALIB
+#define epsilon 0.05
 using namespace std;
 using namespace cv;
 
@@ -32,7 +33,6 @@ ofstream calib_file;
 
 vector<string> listdir(const string &path)
 {
-
 	string dir = path;
 	vector<string> s;
 	_finddata_t fileDir;
@@ -45,8 +45,6 @@ vector<string> listdir(const string &path)
 			string str(fileDir.name);
 			if (str.find('.') == -1)
 				s.push_back(str);
-
-
 		} while (_findnext(lfDir, &fileDir) == 0);
 	}
 	_findclose(lfDir);
@@ -211,19 +209,16 @@ void findfile(const string &str)
 	vector<string> tmp = listdir(s + "\\*");
 	for (int i = 0; i<tmp.size(); i++)
 	{
-
-
 		string temp = s + "\\" + tmp[i];
 		res.push_back(temp);
 		findfile(temp);
 	}
 }
-
 int main(int argc, char *argv[])
 {
 	string str;
 
-	vector < float> Q(4), T(3);
+	vector < float > Q(4), T(3);
 	int mode, imgwidth, imgheight;
 	bool distorted;
 	float intrinsic[4], distortion[4];
@@ -244,6 +239,7 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 	findfile(str);
+
 	for (int i = 0; i < res.size(); i++)
 	{
 		string str_copy = res[i];
@@ -254,13 +250,13 @@ int main(int argc, char *argv[])
 		vector <string> str_image;
 		sprintf(cfg_FilePath, "%s/config.txt", str_copy.c_str());
 		sprintf(img_FilePath, "%s/image_data.txt", str_copy.c_str());
-		sprintf(detect_FilePath, "%s/detect_results.xls", str_copy.c_str());
-		//sprintf(calib_FilePath, "%s/modify_metric.xls", str_copy.c_str());
+		sprintf(detect_FilePath, "%s/detect_results.txt", str_copy.c_str());
+		sprintf(calib_FilePath, "%s/modify_metric.xls", str_copy.c_str());
 		config_file.open(cfg_FilePath);
 		image_file.open(img_FilePath);
 		detect_file.open(detect_FilePath);
 		//calib_file.open(calib_FilePath);
-		detect_file << "detect_result" << "\t" << "image_number" << endl;
+		//calib_file << "Pitch_mod" << "\t" << "Roll_mod" << "\t" << "Yaw_mod" << "\t" << endl;
 		if (!config_file.good() || !image_file.good())
 		{
 			printf("File read failed!\n");
@@ -297,130 +293,203 @@ int main(int argc, char *argv[])
 		vector <string> curr_filename;
 		vector <Mat> curr_mat(3);
 		bool isobstacles = false;
-		for (int i = 0; i < str_image.size() - 8; i += 8)
+		for (int i = 0; i < str_image.size() - 3; i += 3)
 		{
+			/*float a,b;
+			a = atanf(0.02);
+			b = atanf(0.025);
+			cout << a*57.3 << "\t"<< b*57.3 << endl;*/
 			char pre_name[1024], cur_2_name[1024], cur_1_name[1024], cur_name[1024], pre_out[1024], cur_out[1024];
 			str_prev = str_image[i];
-			str_curr_2 = str_image[i + 6];
-			str_curr_1 = str_image[i + 7];
-			str_curr = str_image[i + 8];
-			sprintf(pre_name, "%s/%s.raw8", str_copy.c_str(), str_prev.c_str());
-			sprintf(cur_2_name, "%s/%s.raw8", str_copy.c_str(), str_curr_2.c_str());
-			sprintf(cur_1_name, "%s/%s.raw8", str_copy.c_str(), str_curr_1.c_str());
-			sprintf(cur_name, "%s/%s.raw8", str_copy.c_str(), str_curr.c_str());
-			curr_filename.push_back(cur_2_name);
-			curr_filename.push_back(cur_1_name);
-			curr_filename.push_back(cur_name);
+			str_curr_2 = str_image[i + 1];
+			str_curr_1 = str_image[i + 2];
+			str_curr = str_image[i + 3];
+			if (mode == 1)
+			{
+				sprintf(pre_name, "%s/%s.raw8", str_copy.c_str(), str_prev.c_str());
+				sprintf(cur_2_name, "%s/%s.raw8", str_copy.c_str(), str_curr_2.c_str());
+				sprintf(cur_1_name, "%s/%s.raw8", str_copy.c_str(), str_curr_1.c_str());
+				sprintf(cur_name, "%s/%s.raw8", str_copy.c_str(), str_curr.c_str());
+				curr_filename.push_back(cur_2_name);
+				curr_filename.push_back(cur_1_name);
+				curr_filename.push_back(cur_name);
+			}
+			else
+			{
+				sprintf(pre_name, "%s/%s.jpg", str_copy.c_str(), str_prev.c_str());
+				sprintf(cur_2_name, "%s/%s.jpg", str_copy.c_str(), str_curr_2.c_str());
+				sprintf(cur_1_name, "%s/%s.jpg", str_copy.c_str(), str_curr_1.c_str());
+				sprintf(cur_name, "%s/%s.jpg", str_copy.c_str(), str_curr.c_str());
+			}
 			//sprintf(pre_out, "%s/jpg/%s.jpg", str_copy.c_str(), str_prev.c_str());
 			//sprintf(cur_out, "%s/jpg/%s.jpg", str_copy.c_str(), str_curr.c_str());
 
 			Q_prev = Quaternion[i];
-			Q_curr_2 = Quaternion[i + 6];
-			Q_curr_1 = Quaternion[i + 7];
-			Q_curr = Quaternion[i + 8];
+			Q_curr_2 = Quaternion[i + 1];
+			Q_curr_1 = Quaternion[i + 2];
+			Q_curr = Quaternion[i + 3];
 
-			float dis_delta_ratio_2 = sqrt(pow((Translation[i][0] - Translation[i + 6][0]), 2) + pow((Translation[i][1] - Translation[i + 6][1]), 2)) / 10;
-			float dis_delta_ratio_1 = sqrt(pow((Translation[i][0] - Translation[i + 7][0]), 2) + pow((Translation[i][1] - Translation[i + 7][1]), 2)) / 10;
-			float dis_delta_ratio = sqrt(pow((Translation[i][0] - Translation[i + 8][0]), 2) + pow((Translation[i][1] - Translation[i + 8][1]), 2)) / 10;
+			float height_delta_2 = Translation[i][2] - Translation[i + 1][2];
+			float height_delta_1 = Translation[i][2] - Translation[i + 2][2];
+			float height_delta = Translation[i][2] - Translation[i + 3][2];
+
+			float dis_delta_2 = sqrt(pow((Translation[i][0] - Translation[i + 1][0]), 2) + pow((Translation[i][1] - Translation[i + 1][1]), 2)) ;
+			float dis_delta_1 = sqrt(pow((Translation[i][0] - Translation[i + 2][0]), 2) + pow((Translation[i][1] - Translation[i + 2][1]), 2)) ;
+			float dis_delta = sqrt(pow((Translation[i][0] - Translation[i + 3][0]), 2) + pow((Translation[i][1] - Translation[i + 3][1]), 2)) ;
+
+			float dis_delta_ratio_2 = sqrt(pow((Translation[i][0] - Translation[i + 1][0]), 2) + pow((Translation[i][1] - Translation[i + 1][1]), 2)) / 10;
+			float dis_delta_ratio_1 = sqrt(pow((Translation[i][0] - Translation[i + 2][0]), 2) + pow((Translation[i][1] - Translation[i + 2][1]), 2)) / 10;
+			float dis_delta_ratio = sqrt(pow((Translation[i][0] - Translation[i + 3][0]), 2) + pow((Translation[i][1] - Translation[i + 3][1]), 2)) / 10;
 			//distance.push_back(dis_delta);
 
 			switch (mode)
 			{
 			case 0:{
-					   img_prev = imread(str_prev);
-					   img_curr_2 = imread(str_curr_2);
-					   img_curr_1 = imread(str_curr_1); 
-					   img_curr = imread(str_curr); }
+					   img_prev = imread(pre_name);
+					   img_curr_2 = imread(cur_2_name);
+					   img_curr_1 = imread(cur_1_name);
+					   img_curr = imread(cur_name);
+					   cvtColor(img_prev, img_prev,CV_BGR2GRAY);
+					   cvtColor(img_curr_2, img_curr_2, CV_BGR2GRAY);
+					   cvtColor(img_curr_1, img_curr_1, CV_BGR2GRAY);
+					   cvtColor(img_curr, img_curr, CV_BGR2GRAY); break; }
 			case 1:{
 					   getimage(pre_name, curr_filename, img_prev, curr_mat);
 						img_curr_2 = curr_mat[0];
 						img_curr_1 = curr_mat[1]; 
-						img_curr = curr_mat[2]; }
+						img_curr = curr_mat[2]; break; }
 			default:
 				break;
 			}
 			curr_filename.resize(NULL);
-			//curr_mat.resize(NULL);
-			//imshow(str_prev, img_prev);
-			//imshow(str_curr_2, img_curr);
-			//imshow(str_curr_1, img_curr);
-			//imshow(str_curr, img_curr);
-			//waitKey();
-			//destroyWindow(str_prev);
-			//destroyWindow(str_curr_2);
-			//destroyWindow(str_curr_1);
-			//destroyWindow(str_curr);
+			/*imshow(str_prev, img_prev);
+			imshow(str_curr_2, img_curr);
+			imshow(str_curr_1, img_curr);
+			imshow(str_curr, img_curr);
+			waitKey();
+			destroyWindow(str_prev);
+			destroyWindow(str_curr_2);
+			destroyWindow(str_curr_1);
+			destroyWindow(str_curr);*/
 			/*ORB_Algorithm(img_prev, img_curr);*/
 			cv::Mat mat_prev, mat_curr;
 			cv::Mat disparitymap_2, disparitymap_1, disparitymap;
 			//********image preprocessing with calibration********//
+			int state, state_2, state_1;
+			float Vh_prev = 0, Vh_curr = 0, Vh_curr_2 = 0, Vh_curr_1 = 0;
+			if (Vh_curr <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr>2.4 - 4 * epsilon)
+			{
 #ifdef CALIB
-			
-			obstacle_detection_cal(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
-			
-#else
-			ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 
-#endif
-			/*imshow("mat_prev", mat_prev);
-			imshow("mat_curr", mat_curr);
-			waitKey();
-			destroyWindow("mat_prev");
-			destroyWindow("mat_curr");*/
-			disparitymap = calc_disparity_map(mat_prev,mat_curr);
-			int state = obstacle_detection_cal(dis_delta_ratio, disparitymap);
-#ifdef CALIB
-			obstacle_detection_cal(img_prev, img_curr_2, imgwidth, imgheight, distorted, Q_prev, Q_curr_2, intrinsic, distortion, mat_prev, mat_curr);
+				obstacle_detection_cal(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 
 #else
-			ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+				cout << img_prev.at<char>(240, 320) << img_curr.at<char>(240, 320) << endl;
+				ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 
 #endif
-			/*imshow("mat_prev", mat_prev);
-			imshow("mat_curr", mat_curr);
-			waitKey();
-			destroyWindow("mat_prev");
-			destroyWindow("mat_curr");*/
-			disparitymap_2 = calc_disparity_map(mat_prev, mat_curr);
-			int state_2 = obstacle_detection_cal(dis_delta_ratio_2, disparitymap);
-			if (state + state_2 == 0)
-			{
-				detect_file << 0 << "\t" << str_curr << endl;
-				continue;
-			}
-			else if (state + state_2 == 2)
-			{
-				isobstacles = true;
-				detect_file << 1 << "\t" << str_curr << endl;
-				continue;
+#ifdef C
+				cv::Mat img_1, img_2;
+				img_prev.convertTo(img_1, CV_32FC1);
+				img_curr.convertTo(img_2, CV_32FC1);
+
+				float prev_img[480][640], float curr_img[480][640];
+
+				for (int i = 0; i < 480; i++)
+				{
+					for (int j = 0; j < 640; j++)
+					{
+						prev_img[i][j] = img_1.at<float>(i, j);
+						curr_img[i][j] = img_2.at<float>(i, j);
+					}
+				}
+				cout << prev_img[240][320] << curr_img[240][320] << endl;
+				float Q_prev_C[4], Q_curr_C[4], *mat_prev_C, *mat_curr_C;
+				for (int i = 0; i < 4; i++)
+				{
+					Q_prev_C[i] = Q_prev[i];
+					Q_curr_C[i] = Q_curr[i];
+				}
+				ImagePreprocessing_C(prev_img, curr_img, imgwidth, imgheight, distorted, Q_prev_C, Q_curr_C, intrinsic, distortion);
+#endif
+				imshow("mat_prev", mat_prev);
+				imshow("mat_curr", mat_curr);
+				waitKey();
+				destroyWindow("mat_prev");
+				destroyWindow("mat_curr");
+				disparitymap = calc_disparity_map(mat_prev, mat_curr);
+				state = obstacle_detection_cal(dis_delta_ratio, disparitymap);
+				float distance = distance_estimate(disparitymap, dis_delta);
 			}
 			else
 			{
+				state = 0;
+			}
+			if (Vh_curr_2 <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr_2>2.4 - 4 * epsilon)
+			{
 #ifdef CALIB
-				obstacle_detection_cal(img_prev, img_curr_1, imgwidth, imgheight, distorted, Q_prev, Q_curr_1, intrinsic, distortion, mat_prev, mat_curr);
+				obstacle_detection_cal(img_prev, img_curr_2, imgwidth, imgheight, distorted, Q_prev, Q_curr_2, intrinsic, distortion, mat_prev, mat_curr);
 
 #else
 				ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 
 #endif
-				/*imshow("mat_prev", mat_prev);
+				imshow("mat_prev", mat_prev);
 				imshow("mat_curr", mat_curr);
 				waitKey();
 				destroyWindow("mat_prev");
-				destroyWindow("mat_curr");*/
-				disparitymap_1 = calc_disparity_map(mat_prev, mat_curr);
-				int state_1 = obstacle_detection_cal(dis_delta_ratio_1, disparitymap);
-				if (state_1 == 1)
+				destroyWindow("mat_curr");
+				disparitymap_2 = calc_disparity_map(mat_prev, mat_curr);
+				state_2 = obstacle_detection_cal(dis_delta_ratio_2, disparitymap_2);
+				float distance_2 = distance_estimate(disparitymap_2, dis_delta_2);
+			}
+			else
+			{
+				state_2 = 0;
+			}
+			if (state + state_2 == 0)
+			{
+				cout << "Security: No obstacles within 300 meters now!" << endl;
+				continue;
+			}
+			else if (state + state_2 == 2)
+			{
+				isobstacles = true;
+				detect_file << isobstacles << "\t"<< str_curr << endl;
+				cout << "Warning: obstacles are within 300 meters now!" << endl;
+				float distance = distance_estimate(disparitymap, dis_delta); 
+				continue;
+			}
+			else
+			{
+				if (Vh_curr_1 <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr_1>2.4 - 4 * epsilon)
 				{
-					isobstacles = true;
-					detect_file << 1 << "\t" << str_curr << endl;
+#ifdef CALIB
+					obstacle_detection_cal(img_prev, img_curr_1, imgwidth, imgheight, distorted, Q_prev, Q_curr_1, intrinsic, distortion, mat_prev, mat_curr);
+#else
+					ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+#endif
+					imshow("mat_prev", mat_prev);
+					imshow("mat_curr", mat_curr);
+					waitKey();
+					destroyWindow("mat_prev");
+					destroyWindow("mat_curr");
+					disparitymap_1 = calc_disparity_map(mat_prev, mat_curr);
+					state_1 = obstacle_detection_cal(dis_delta_ratio_1, disparitymap_1);
+					float distance_1 = distance_estimate(disparitymap_1, dis_delta_1);
 				}
 				else
 				{
-					detect_file << 0 << "\t" << str_curr << endl;
+					cout << "Security: No obstacles within 300 meters now!" << endl;
+				}
+				if (state_1 == 1)
+				{
+					isobstacles = true;
+					detect_file << isobstacles << "\t" << str_curr << endl;
+					float distance = distance_estimate(disparitymap, dis_delta);
+					cout << "Warning: Obstacles within 300 meters now!" << endl;
 				}
 			}
-			
 		}
 		//system("pause");
 	}

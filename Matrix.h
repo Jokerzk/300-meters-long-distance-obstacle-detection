@@ -1,5 +1,6 @@
 #ifndef _MATRIX_H_
 #define _MATRIX_H_
+//#define Movidius
 
 #include <math.h>
 #include <algorithm>
@@ -7,10 +8,10 @@
 
 using namespace std;
 using namespace cv;
-#ifdef C
-void GetEulerAngle(float Qarray[4], float EulerAngle[3]);
+#ifdef Movidius
+void GetEulerAngle_C(float Qarray[4], float EulerAngle[3]);
 
-void Eular2Rot(float EulerAngle[3], float RotMat[3][3]);
+void Eular2Rot_C(float EulerAngle[3], float RotMat[3][3]);
 
 float GetA(float arcs[3][3], int n);
 void  GetAStart(float arcs[3][3], int n, float ans[3][3]);

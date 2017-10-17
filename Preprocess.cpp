@@ -1,8 +1,9 @@
 #include "Preprocess.h"
 #include "Matrix.h"
 
-#ifdef C
-int getimage(string str_prev, string str_curr, float img_prev[480][640], float img_curr[480][640])
+#ifdef Movidius
+
+int getimage_C(string str_prev, string str_curr, float img_prev[480][640], float img_curr[480][640])
 {
 	ifstream reader;
 
@@ -36,39 +37,79 @@ int getimage(string str_prev, string str_curr, float img_prev[480][640], float i
 	}
 	return 0;
 }
-void GaussianBlur(float* data, int width, int height)
+void Sobel_C(float src[80][240], float dest[80][240],int Xksize, int Yksize)
 {
-	float sumwin;
-	int kneral[9] = { 1, 2, 1, 2, 4, 2, 1, 2, 1 };
-	int sum = height * width * sizeof(float);
-	float *tmpdata = (float*)malloc(sum);
-	memcpy((float*)tmpdata, (float*)data, sum);
-	for (int i = 1; i < height - 1; i++)
+	float Xsumwin,Ysumwin;
+	int Xkneral[9] = { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
+	int Ykneral[9] = { 1, 2, 1, 0, 0, 0, -1, -2, -1 };
+	for (int i = Yksize/2; i < 80 - Yksize/2; i++)
 	{
-		for (int j = 1; j < width - 1; j++)
+		for (int j = Yksize/2; j < 240 - Yksize/2; j++)
 		{
 			int index = 0;
-			float sumwin = 0.0;
+			Xsumwin = 0.0;Ysumwin = 0.0;
 			for (int m = i - 1; m < i + 2; m++)
 			{
 				for (int n = j - 1; n < j + 2; n++)
 				{
-					sumwin += tmpdata[m * width + n] * kneral[index++];
+					Xsumwin += src[m][n] * Xkneral[index++];
+					Ysumwin += src[m][n] * Ykneral[index++];
+
 				}
 			}
-			data[i * width + j] = sumwin / 16;
+			dest[i][j] = sqrt(Xsumwin*Ysumwin);
 		}
 	}
-	free(tmpdata);
 }
-void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool distorted, float Qarray1[4], float Tarray1[3], float Qarray2[4], float Tarray2[3], float intrinsic[4], float distortion[4])
+void Blur_C(float src[80][240], float dest[80][240], int width, int height, int border_width, int border_height)
+{
+	float temp_sum;
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width ; j++)
+		{
+			temp_sum = 0;
+			if(i<border_height / 2 || j < border_width / 2)
+				{
+					dest[i][j] = src[i][j];
+					continue;
+				}
+			else
+				{
+					for(int k = i - border_height / 2;k <= i + border_height / 2; k++ )
+						for(int w = j - border_width / 2; w <= j + border_width / 2; w++)
+							{
+								temp_sum += src[k][w];
+							}
+					
+				}
+			dest[i][j] = temp_sum / border_width*border_height;
+		}
+	}
+	//free(tmpdata);
+}
+
+void resize_C(float src[80][240], float dest[YRESIZE][XRESIZE])
+{
+	float scale_x = XRESIZE / 240;
+	float scale_y = YRESIZE / 80;
+	for(int i = 0;i < XRESIZE;i++)
+	{
+		int sx = i*scale_x;
+		sx = min(sx,240 - 1);
+		for(int j = 0;j < YRESIZE;j++)
+		{
+			int sy = j*scale_y;
+			sy = min(sy,80 - 1);
+			dest[j][i] = src[sy][sx];
+		}
+	}
+}
+void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], int width, int height, bool distorted, float Qarray1[4], float Qarray2[4], float intrinsic[4], float distortion[4])
 {
 	float euAngle0[3], euAngle2[3];
-	GetEulerAngle(Qarray1, euAngle0);
-	GetEulerAngle(Qarray2, euAngle2);
-
-	float dis_delta = sqrt(pow((Tarray1[0] - Tarray2[0]), 2) + pow((Tarray1[1] - Tarray2[1]), 2));
-	float dis_cur = sqrt(pow(Tarray2[0], 2) + pow(Tarray2[1], 2));
+	GetEulerAngle_C(Qarray1, euAngle0);
+	GetEulerAngle_C(Qarray2, euAngle2);
 
 	float M[3][3] = { 0 }, M_inv[3][3] = { 0 };
 	M[0][0] = intrinsic[0];
@@ -84,13 +125,13 @@ void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool
 	cam_angle0[0] = euAngle0[1];
 	cam_angle0[1] = 0;
 	cam_angle0[2] = euAngle0[0];
-	Eular2Rot(cam_angle0, rot_mat0);
+	Eular2Rot_C(cam_angle0, rot_mat0);
 	GetMatrixInverse(rot_mat0, 3, rot_mat0_inv);
 
 	cam_angle2[0] = euAngle2[1];
 	cam_angle2[1] = 0;
 	cam_angle2[2] = euAngle2[0];
-	Eular2Rot(cam_angle2, rot_mat2);
+	Eular2Rot_C(cam_angle2, rot_mat2);
 	GetMatrixInverse(rot_mat2, 3, rot_mat2_inv);
 
 	//********** images undistortion **********//
@@ -113,10 +154,11 @@ void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool
 	GetMatrixMultiple_3(temp, M_inv, temp0);
 	GetMatrixMultiple_3(M, rot_mat2, temp);
 	GetMatrixMultiple_3(temp, M_inv, temp2);
+	int border_width = 200, border_height = 200;
 
-	for (int i = 180; i < 640 - 180; ++i)
+	for (int i = border_height; i < height - border_height; ++i)
 	{
-		for (int j = 80; j < 480 - 80; ++j)
+		for (int j = border_width; j < width - border_width; ++j)
 		{
 			float temp[3];
 			temp[0] = j;
@@ -127,9 +169,9 @@ void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool
 			GetMatrixMultiple_1(temp0, temp, new_temp0);
 			int r0 = new_temp0[1] / new_temp0[2];
 			int c0 = new_temp0[0] / new_temp0[2];
-			if (c0 >= 0 && c0 < 640 && r0 >= 0 && r0 < 480)
+			if (c0 >= 0 && c0 < width && r0 >= 0 && r0 < height)
 			{
-				newimg0[i - 180][j - 80] = prev_img[r0][c0];
+				newimg0[i - border_height][j - border_width] = prev_img[r0][c0];
 			}
 
 			float new_temp2[3] = { 0 };
@@ -138,16 +180,67 @@ void ImagePreprocessing(float prev_img[480][640], float curr_img[480][640], bool
 			int c0 = new_temp2[0] / new_temp2[2];
 			if (c0 >= 0 && c0 < 640 && r0 >= 0 && r0 < 480)
 			{
-				newimg2[i - 180][j - 80] = curr_img[r0][c0];
+				newimg2[i - border_height][j - border_width] = curr_img[r0][c0];
 			}
 		}
 	}
+	//preprocessimg_mat(newimg0, prev_mat);
+	//preprocessimg_mat(newimg2, curr_mat);
+}
 
-	GaussianBlur(newimg0, 480, 120);
-	GaussianBlur(newimg2, 480, 120);
+void preprocessimg_mat_C(cv::Mat src_mat, cv::Mat &dst)
+{
+	/*cv::blur(src_mat, src_mat, cv::Size(3, 11));
+	cv::Size small_sz;
+	small_sz.height = src_mat.rows / 3;
+	small_sz.width = src_mat.cols;
+	cv::resize(src_mat, dst, small_sz);
+	dst.convertTo(dst, CV_32FC1);
+	cv::normalize(dst, dst, 1, 0, CV_MINMAX);*/
+
+	Mat dst_x, dst_y;
+	blur(src_mat, src_mat, cv::Size(3, 11));
+	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 5);
+	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 5);
+	dst = Mat(src_mat.rows, src_mat.cols, CV_32FC1);
+	for (int i = 0; i < src_mat.rows; ++i)
+	{
+		for (int j = 0; j < src_mat.cols; ++j)
+		{
+			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j));
+		}
+	}
+	cv::Size small_sz;
+	small_sz.height = dst.rows / 3;
+	small_sz.width = dst.cols;
+	cv::resize(dst, dst, small_sz);
+	cv::normalize(dst, dst, 1, 0, CV_MINMAX);
 
 }
 
+void normalize(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], const int width, const int height, const int normrange)
+{
+	float maxval(0);
+	float minval(1000);
+	{
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			if (maxval < input[x][y]) maxval = input[x][y];
+			if (minval > input[x][y]) minval = input[x][y];
+		}
+	}}
+	double range = maxval - minval;
+	if (0 == range) range = 1;
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			output[x][y] = ((normrange*(input[x][y] - minval)) / range);
+		}
+	}
+}
 
 #endif
 
@@ -199,6 +292,8 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 	Vec3f euAngle_prev = GetEulerAngle(Qarray_prev);
 	Vec3f euAngle_curr = GetEulerAngle(Qarray_curr);
 
+	cout << "euAngle_prev:" << euAngle_prev[0] << euAngle_prev[1] << euAngle_prev[2] << endl;
+
 	cv::Mat M = cv::Mat(3, 3, CV_32FC1, float(0));
 	M.at<float>(0, 0) = intrinsic[0];
 	M.at<float>(0, 2) = intrinsic[2];
@@ -207,14 +302,16 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 	M.at<float>(2, 2) = 1;
 	cv::Mat inv_M = M.inv();
 
+	cout << "inv_M : " << inv_M << endl;
+
 	Vec3f cam_angle;
-	cam_angle[0] = euAngle_prev[1];
+	cam_angle[0] = euAngle_prev[1];//-atan(Vh/Vs)
 	cam_angle[1] = 0;
 	cam_angle[2] = euAngle_prev[0];
 	cv::Mat rot_mat0 = Eular2Rot(cam_angle);
 	cv::Mat inv_rot0 = rot_mat0.inv();
 
-	cam_angle[0] = euAngle_curr[1];// +0.4 / 57.3;
+	cam_angle[0] = euAngle_curr[1];//-atan(Vh/Vs)
 	cam_angle[1] = 0;// -1.5 / 57.3;
 	cam_angle[2] = euAngle_curr[0];
 	cv::Mat rot_mat1 = Eular2Rot(cam_angle);
@@ -312,86 +409,3 @@ void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 	cv::normalize(dst, dst, 1, 0, CV_MINMAX);
 
 }
-
-//int ORB_Algorithm(cv::Mat imgA, cv::Mat imgB)
-//{
-//	imshow("imgA", imgA);
-//	imshow("imgB", imgB);
-//	waitKey();
-//	ORB orb;
-//	vector<KeyPoint> keyPointsA, keyPointsB;
-//	Mat descriptorsA, descriptorsB;
-//	orb(imgA, Mat(), keyPointsA, descriptorsA);
-//	orb(imgB, Mat(), keyPointsB, descriptorsB);
-//	drawKeypoints(imgA, keyPointsA, imgA, Scalar::all(-1));
-//	drawKeypoints(imgB, keyPointsB, imgB, Scalar::all(-1));
-//	cv::imshow("keypointsA", imgA);
-//	cv::imshow("keypointsB", imgB);
-//	waitKey();
-//	//--Get discriptors of imgs
-//	BruteForceMatcher<Hamming> matcher;
-//	vector<DMatch> matches;
-//
-//	matcher.match(descriptorsA, descriptorsB, matches);
-//	//--Return the minimum distances of pairs
-//	
-//	double max_dist = 0;
-//	double min_dist = 100;
-//	//-- Quick calculation of max and min distances between keypoints
-//	for (int i = 0; i<descriptorsA.rows; i++)
-//	{
-//		double dist = matches[i].distance;
-//		if (dist < min_dist) min_dist = dist;
-//		if (dist > max_dist) max_dist = dist;
-//	}
-//	printf("-- Max dist : %f \n", max_dist);
-//	printf("-- Min dist : %f \n", min_dist);
-//	//-- Draw only "good" matches (i.e. whose distance is less than 0.6*max_dist )
-//
-//	vector<int> queryIdxs(matches.size()), trainIdxs(matches.size());
-//	for (size_t i = 0; i < matches.size(); i++)
-//	{
-//		queryIdxs[i] = matches[i].queryIdx;
-//		trainIdxs[i] = matches[i].trainIdx;
-//	}
-//
-//	Mat H12, H13;   //单应矩阵  
-//	vector<Point2f> points1; KeyPoint::convert(keyPointsA, points1, queryIdxs);
-//	vector<Point2f> points2; KeyPoint::convert(keyPointsB, points2, trainIdxs);
-//	int ransacReprojThreshold = 10;  //拒绝阈值  
-//	H12 = findHomography(Mat(points1), Mat(points2), CV_RANSAC, ransacReprojThreshold);//根据匹配点获得单应矩阵
-//	H13 = findFundamentalMat(Mat(points1), Mat(points2), FM_RANSAC);
-//	cout << H13 << endl;
-//	vector<DMatch> matchesMask;
-//	Mat points1t;
-//	perspectiveTransform(Mat(points1), points1t, H12);//利用单应矩阵透视变换得到图1中各点的MASK
-//	for (size_t i = 0; i < points1.size(); i++)  //保存‘内点’  
-//	{
-//		if (norm(points2[i] - points1t.at<Point2f>((int)i, 0)) <= ransacReprojThreshold) //当图2中之前找的匹配点与MASK的灰度值小于给定阈值时，标记为内点
-//		{
-//			matchesMask.push_back(matches[i]);
-//		}
-//	}
-//	Mat img_matches_ransac;
-//	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
-//		matchesMask, img_matches_ransac, Scalar::all(-1), Scalar::all(-1),
-//		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-//	cv::imshow("ORB_match_ransac", img_matches_ransac);
-//
-//	vector<DMatch> good_matches;
-//	for (int i = 0; i<descriptorsA.rows; i++)
-//	{
-//		if (matches[i].distance < 0.6*max_dist)
-//		{
-//			good_matches.push_back(matches[i]);
-//		}
-//	}
-//
-//	Mat img_matches;
-//	drawMatches(imgA, keyPointsA, imgB, keyPointsB,
-//		good_matches, img_matches, Scalar::all(-1), Scalar::all(-1),
-//		vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
-//	cv::imshow("ORB_match", img_matches);
-//	cv::waitKey();
-//	return 0;
-//}

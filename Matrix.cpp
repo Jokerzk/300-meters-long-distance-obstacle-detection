@@ -1,6 +1,7 @@
 #include "Matrix.h"
-#ifdef C
-void GetEulerAngle(float Qarray[4], float EulerAngle[3])
+//#define Movidius
+#ifdef Movidius
+void GetEulerAngle_C(float Qarray[4], float EulerAngle[3])
 {
 	float q0 = Qarray[0];
 	float q1 = Qarray[1];
@@ -12,7 +13,7 @@ void GetEulerAngle(float Qarray[4], float EulerAngle[3])
 	EulerAngle[2] = atan2(2 * (q0*q3 + q1*q2), 1 - 2 * (q2*q2 + q3*q3));
 }
 
-void Eular2Rot(float EulerAngle[3], float RotMat[3][3])
+void Eular2Rot_C(float EulerAngle[3], float RotMat[3][3])
 {
 	float froll = EulerAngle[0];
 	float fpitch = EulerAngle[1];

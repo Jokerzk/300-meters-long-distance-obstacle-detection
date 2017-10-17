@@ -4,7 +4,7 @@ float disp_10_300[10] = { 5, 8.33, 11.67, 15, 18.33, 21.67, 25, 28.33, 31.67, 35
 float disp_20_300[10] = { 1, 1.67, 2.33, 3, 3.67, 4.33, 5, 5.67, 6.33, 7 };
 float disp_30_300[10] = { 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5 };
 
-#ifdef C
+#ifdef Movidius
 int obstacle_detection_cal(float distance_delta, float disparitymap[40][220])
 {
 	///*cv::imshow("disparity2", disparity2);
@@ -100,15 +100,49 @@ bool GetScore(float disp_left[10], float disp_right[10])
 }
 #endif
 
+float distance_estimate(cv::Mat disparitymap, float dist_delat)
+{
+	cv::Mat disparity = disparitymap(Rect(80, 10, 80, 6));
+	int width = disparity.cols;
+	int height = disparity.rows;
+	int line_count = 0;
+	float min = 10000,dist;
+	float disp_sum[80] = { 0 }, disp_ave[80] = { 0 }, differ[80] = {0};
+
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
+			cout << disparity.at<float>(j, i) << endl;
+			disp_sum[i] += disparity.at<float>(j, i);
+		}
+		disp_ave[i] = disp_sum[i] / height;
+		for (int k = 0; k < height; k++)
+		{
+			differ[i] += pow((disparity.at<float>(k, i) - disp_ave[i]), 2);
+		}
+	}
+	for (int i = 0; i < width; i++)
+	{
+		if (differ[i] <= min && abs(i - width / 2) > line_count)
+		{
+			min = differ[i];
+			line_count = i;
+		}
+	}
+	dist = dist_delat*abs(line_count - 40) / disp_ave[line_count];
+	return dist;
+}
+
 int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap)
 {
 	cv::Mat disparity = disparitymap(Rect(80,10,80,6));
 	cv::Mat disp_mat;
 	disparity.convertTo(disp_mat,CV_8UC1);
 	cv::normalize(disp_mat, disp_mat, 0, 255, CV_MINMAX);
-	/*imshow("disparity", disp_mat);
+	imshow("disparity", disp_mat);
 	waitKey(0);
-	destroyWindow("disparity");*/
+	destroyWindow("disparity");
 	float disp_left[6][4] = { 0 }, disp_right[6][4] = { 0 }, obsdist_left = 0, obsdist_right = 0;
 	for (int i = 0; i < 8; i++)
 	{

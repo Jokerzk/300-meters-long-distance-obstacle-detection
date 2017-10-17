@@ -6,9 +6,11 @@
 #include "Matrix.h"
 
 #define SCORECOL 4
-#define SCOREROW 3
+#define SCOREROW 4
 using namespace std;
 using namespace cv;
+
+float distance_estimate(cv::Mat disparitymap, float dist_delat);
 
 int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap);
 #endif

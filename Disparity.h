@@ -3,7 +3,7 @@
 
 #define max(x,y)  ( x>y?x:y )
 #define min(x,y)  ( x<y?x:y )
-#define SAD_TH 16
+#define SAD_TH 10
 
 #include <stdio.h>
 #include <stdlib.h>

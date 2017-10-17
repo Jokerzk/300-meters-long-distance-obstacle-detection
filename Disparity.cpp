@@ -132,18 +132,18 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 						{
 							minsec_sad = min_sad;
 							min_sad = sad;
-							//disp = max(k, 0);
-							if (min_sad < SAD_TH && min_sad < 0.98* minsec_sad)
+							disp = max(k, 0);
+							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
 							{
 								disp = max(k, 0);
 							}
 							else
 							{
 								disp = 0;
-							}
+							}*/
 						}
 					}
-					cout << min_sad << endl;
+					//cout << min_sad << endl;
 				}
 				else
 				{
@@ -162,15 +162,15 @@ cv::Mat calc_disparity_map(cv::Mat prev_mat, cv::Mat curr_mat)
 						{
 							minsec_sad = min_sad;
 							min_sad = sad;
-							//disp = max(k, 0);
-							if (min_sad < SAD_TH && min_sad < 0.98* minsec_sad)
+							disp = max(k, 0);
+							/*if (min_sad < SAD_TH && min_sad < 0.9* minsec_sad)
 							{
 								disp = max(k, 0);
 							}
 							else
 							{
 								disp = 0;
-							}
+							}*/
 						}
 					}
 				}

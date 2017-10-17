@@ -83,56 +83,22 @@ int obstacle_detection_cal(float distance_delta, float disparitymap[40][220])
 	return 0;
 }
 
-bool GetScore(float disp_left[10], float disp_right[10])
-{
-	int counts = 0;
-	bool state = false;
-	for (int i = 0; i < 10; i++)
-	{
-		if (disp_left[i] > disp_10_300[i])
-			counts++;
-		if (disp_right[i] > disp_10_300[i])
-			counts++;
-	}
-	if (counts >= SCORE)
-		state = true;
-	return state;
-}
+//bool GetScore(float disp_left[10], float disp_right[10])
+//{
+//	int counts = 0;
+//	bool state = false;
+//	for (int i = 0; i < 10; i++)
+//	{
+//		if (disp_left[i] > disp_10_300[i])
+//			counts++;
+//		if (disp_right[i] > disp_10_300[i])
+//			counts++;
+//	}
+//	if (counts >= SCORE)
+//		state = true;
+//	return state;
+//}
 #endif
-
-float distance_estimate(cv::Mat disparitymap, float dist_delat)
-{
-	cv::Mat disparity = disparitymap(Rect(80, 10, 80, 6));
-	int width = disparity.cols;
-	int height = disparity.rows;
-	int line_count = 0;
-	float min = 10000,dist;
-	float disp_sum[80] = { 0 }, disp_ave[80] = { 0 }, differ[80] = {0};
-
-	for (int i = 0; i < width; i++)
-	{
-		for (int j = 0; j < height; j++)
-		{
-			cout << disparity.at<float>(j, i) << endl;
-			disp_sum[i] += disparity.at<float>(j, i);
-		}
-		disp_ave[i] = disp_sum[i] / height;
-		for (int k = 0; k < height; k++)
-		{
-			differ[i] += pow((disparity.at<float>(k, i) - disp_ave[i]), 2);
-		}
-	}
-	for (int i = 0; i < width; i++)
-	{
-		if (differ[i] <= min && abs(i - width / 2) > line_count)
-		{
-			min = differ[i];
-			line_count = i;
-		}
-	}
-	dist = dist_delat*abs(line_count - 40) / disp_ave[line_count];
-	return dist;
-}
 
 int obstacle_detection_cal(float distance_delta_ratio, cv::Mat disparitymap)
 {

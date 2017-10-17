@@ -1,5 +1,5 @@
 #include "Matrix.h"
-//#define Movidius
+
 #ifdef Movidius
 void GetEulerAngle_C(float Qarray[4], float EulerAngle[3])
 {
@@ -117,7 +117,7 @@ void GetMatrixMultiple_3(float src1[3][3], float src2[3][3], float des[3][3])
 		for (int k = 0; k<3; k++)
 			for (int j = 0; j<3; j++)
 				{
-					des[i][k] += src1[k][j] * src2[j][k];
+					des[i][k] += src1[i][j] * src2[j][k];
 				}
 }
 void GetMatrixMultiple_1(float src1[3][3], float src2[3], float des[3])

@@ -1,6 +1,6 @@
 #ifndef _MATRIX_H_
 #define _MATRIX_H_
-//#define Movidius
+#define Movidius
 
 #include <math.h>
 #include <algorithm>

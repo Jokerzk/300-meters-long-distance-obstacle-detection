@@ -24,11 +24,13 @@ void Blur_C(float src[80][240], float dest[80][240], int width, int height, int 
 
 void resize_C(float src[80][240], float dest[YRESIZE][XRESIZE]);
 
-void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], int width, int height, bool distorted, float Qarray1[4], float Qarray2[4],  float intrinsic[4], float distortion[4]);
+Mat ReSizeForLinear(Mat src, Mat dst);
 
-void preprocessimg_mat_C(cv::Mat src_mat, cv::Mat &dst);
+void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], int width, int height, bool distorted, float Qarray1[4], float Qarray2[4], float intrinsic[4], float distortion[4], float prev_mat[80][240], float curr_mat[80][240]);
 
-void normalize(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], const int width, const int height, const int normrange);
+void preprocessimg_mat_C(float src_mat[80][240], float dest_mat[80][240]);
+
+void normalize_normalize_C(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], const int width, const int height, const int normrange);
 
 int getimage(string str_prev, vector <string> str_curr, cv::Mat &img_prev, vector<Mat> &img_curr);
 

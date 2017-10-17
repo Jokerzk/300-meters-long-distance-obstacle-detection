@@ -5,8 +5,7 @@
 
 
 #define WINDOW_NAME "imagealine"
-#define CALIB
-#define epsilon 0.05
+//#define CALIB
 using namespace std;
 using namespace cv;
 
@@ -295,10 +294,6 @@ int main(int argc, char *argv[])
 		bool isobstacles = false;
 		for (int i = 0; i < str_image.size() - 3; i += 3)
 		{
-			/*float a,b;
-			a = atanf(0.02);
-			b = atanf(0.025);
-			cout << a*57.3 << "\t"<< b*57.3 << endl;*/
 			char pre_name[1024], cur_2_name[1024], cur_1_name[1024], cur_name[1024], pre_out[1024], cur_out[1024];
 			str_prev = str_image[i];
 			str_curr_2 = str_image[i + 1];
@@ -328,14 +323,6 @@ int main(int argc, char *argv[])
 			Q_curr_2 = Quaternion[i + 1];
 			Q_curr_1 = Quaternion[i + 2];
 			Q_curr = Quaternion[i + 3];
-
-			float height_delta_2 = Translation[i][2] - Translation[i + 1][2];
-			float height_delta_1 = Translation[i][2] - Translation[i + 2][2];
-			float height_delta = Translation[i][2] - Translation[i + 3][2];
-
-			float dis_delta_2 = sqrt(pow((Translation[i][0] - Translation[i + 1][0]), 2) + pow((Translation[i][1] - Translation[i + 1][1]), 2)) ;
-			float dis_delta_1 = sqrt(pow((Translation[i][0] - Translation[i + 2][0]), 2) + pow((Translation[i][1] - Translation[i + 2][1]), 2)) ;
-			float dis_delta = sqrt(pow((Translation[i][0] - Translation[i + 3][0]), 2) + pow((Translation[i][1] - Translation[i + 3][1]), 2)) ;
 
 			float dis_delta_ratio_2 = sqrt(pow((Translation[i][0] - Translation[i + 1][0]), 2) + pow((Translation[i][1] - Translation[i + 1][1]), 2)) / 10;
 			float dis_delta_ratio_1 = sqrt(pow((Translation[i][0] - Translation[i + 2][0]), 2) + pow((Translation[i][1] - Translation[i + 2][1]), 2)) / 10;
@@ -375,78 +362,62 @@ int main(int argc, char *argv[])
 			cv::Mat mat_prev, mat_curr;
 			cv::Mat disparitymap_2, disparitymap_1, disparitymap;
 			//********image preprocessing with calibration********//
-			int state, state_2, state_1;
-			float Vh_prev = 0, Vh_curr = 0, Vh_curr_2 = 0, Vh_curr_1 = 0;
-			if (Vh_curr <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr>2.4 - 4 * epsilon)
-			{
 #ifdef CALIB
+			
+			obstacle_detection_cal(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+			
+#else
+			
 
-				obstacle_detection_cal(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+
+			ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+
+#endif
+#ifdef Movidius
+			cv::Mat img_1, img_2;
+			img_prev.convertTo(img_1, CV_32FC1);
+			img_curr.convertTo(img_2, CV_32FC1);
+
+			float prev_img[480][640], curr_img[480][640];
+
+			for (int i = 0; i < 480; i++)
+			{
+				for (int j = 0; j < 640; j++)
+				{
+					prev_img[i][j] = img_1.at<float>(i, j);
+					curr_img[i][j] = img_2.at<float>(i, j);
+				}
+			}
+			float Q_prev_C[4], Q_curr_C[4], *mat_prev_C, *mat_curr_C;
+			for (int i = 0; i < 4; i++)
+			{
+				Q_prev_C[i] = Q_prev[i];
+				Q_curr_C[i] = Q_curr[i];
+			}
+			float prev_mat[80][240]; float curr_mat[80][240];
+			ImagePreprocessing_C(prev_img, curr_img, imgwidth, imgheight, distorted, Q_prev_C, Q_curr_C, intrinsic, distortion, prev_mat, curr_mat);
+#endif
+			imshow("mat_prev", mat_prev);
+			imshow("mat_curr", mat_curr);
+			waitKey();
+			destroyWindow("mat_prev");
+			destroyWindow("mat_curr");
+			disparitymap = calc_disparity_map(mat_prev,mat_curr);
+			int state = obstacle_detection_cal(dis_delta_ratio, disparitymap);
+#ifdef CALIB
+			obstacle_detection_cal(img_prev, img_curr_2, imgwidth, imgheight, distorted, Q_prev, Q_curr_2, intrinsic, distortion, mat_prev, mat_curr);
 
 #else
-				cout << img_prev.at<char>(240, 320) << img_curr.at<char>(240, 320) << endl;
-				ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+			ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 
 #endif
-#ifdef C
-				cv::Mat img_1, img_2;
-				img_prev.convertTo(img_1, CV_32FC1);
-				img_curr.convertTo(img_2, CV_32FC1);
-
-				float prev_img[480][640], float curr_img[480][640];
-
-				for (int i = 0; i < 480; i++)
-				{
-					for (int j = 0; j < 640; j++)
-					{
-						prev_img[i][j] = img_1.at<float>(i, j);
-						curr_img[i][j] = img_2.at<float>(i, j);
-					}
-				}
-				cout << prev_img[240][320] << curr_img[240][320] << endl;
-				float Q_prev_C[4], Q_curr_C[4], *mat_prev_C, *mat_curr_C;
-				for (int i = 0; i < 4; i++)
-				{
-					Q_prev_C[i] = Q_prev[i];
-					Q_curr_C[i] = Q_curr[i];
-				}
-				ImagePreprocessing_C(prev_img, curr_img, imgwidth, imgheight, distorted, Q_prev_C, Q_curr_C, intrinsic, distortion);
-#endif
-				imshow("mat_prev", mat_prev);
-				imshow("mat_curr", mat_curr);
-				waitKey();
-				destroyWindow("mat_prev");
-				destroyWindow("mat_curr");
-				disparitymap = calc_disparity_map(mat_prev, mat_curr);
-				state = obstacle_detection_cal(dis_delta_ratio, disparitymap);
-				float distance = distance_estimate(disparitymap, dis_delta);
-			}
-			else
-			{
-				state = 0;
-			}
-			if (Vh_curr_2 <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr_2>2.4 - 4 * epsilon)
-			{
-#ifdef CALIB
-				obstacle_detection_cal(img_prev, img_curr_2, imgwidth, imgheight, distorted, Q_prev, Q_curr_2, intrinsic, distortion, mat_prev, mat_curr);
-
-#else
-				ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
-
-#endif
-				imshow("mat_prev", mat_prev);
-				imshow("mat_curr", mat_curr);
-				waitKey();
-				destroyWindow("mat_prev");
-				destroyWindow("mat_curr");
-				disparitymap_2 = calc_disparity_map(mat_prev, mat_curr);
-				state_2 = obstacle_detection_cal(dis_delta_ratio_2, disparitymap_2);
-				float distance_2 = distance_estimate(disparitymap_2, dis_delta_2);
-			}
-			else
-			{
-				state_2 = 0;
-			}
+			imshow("mat_prev", mat_prev);
+			imshow("mat_curr", mat_curr);
+			waitKey();
+			destroyWindow("mat_prev");
+			destroyWindow("mat_curr");
+			disparitymap_2 = calc_disparity_map(mat_prev, mat_curr);
+			int state_2 = obstacle_detection_cal(dis_delta_ratio_2, disparitymap_2);
 			if (state + state_2 == 0)
 			{
 				cout << "Security: No obstacles within 300 meters now!" << endl;
@@ -457,38 +428,30 @@ int main(int argc, char *argv[])
 				isobstacles = true;
 				detect_file << isobstacles << "\t"<< str_curr << endl;
 				cout << "Warning: obstacles are within 300 meters now!" << endl;
-				float distance = distance_estimate(disparitymap, dis_delta); 
 				continue;
 			}
 			else
 			{
-				if (Vh_curr_1 <2 * epsilon || 2.4 + 4 * epsilon>Vh_curr_1>2.4 - 4 * epsilon)
-				{
 #ifdef CALIB
-					obstacle_detection_cal(img_prev, img_curr_1, imgwidth, imgheight, distorted, Q_prev, Q_curr_1, intrinsic, distortion, mat_prev, mat_curr);
+				obstacle_detection_cal(img_prev, img_curr_1, imgwidth, imgheight, distorted, Q_prev, Q_curr_1, intrinsic, distortion, mat_prev, mat_curr);
 #else
-					ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
+				ImagePreprocessing(img_prev, img_curr, imgwidth, imgheight, distorted, Q_prev, Q_curr, intrinsic, distortion, mat_prev, mat_curr);
 #endif
-					imshow("mat_prev", mat_prev);
-					imshow("mat_curr", mat_curr);
-					waitKey();
-					destroyWindow("mat_prev");
-					destroyWindow("mat_curr");
-					disparitymap_1 = calc_disparity_map(mat_prev, mat_curr);
-					state_1 = obstacle_detection_cal(dis_delta_ratio_1, disparitymap_1);
-					float distance_1 = distance_estimate(disparitymap_1, dis_delta_1);
-				}
-				else
-				{
-					cout << "Security: No obstacles within 300 meters now!" << endl;
-				}
+				imshow("mat_prev", mat_prev);
+				imshow("mat_curr", mat_curr);
+				waitKey();
+				destroyWindow("mat_prev");
+				destroyWindow("mat_curr");
+				disparitymap_1 = calc_disparity_map(mat_prev, mat_curr);
+				int state_1 = obstacle_detection_cal(dis_delta_ratio_1, disparitymap_1);
 				if (state_1 == 1)
 				{
 					isobstacles = true;
 					detect_file << isobstacles << "\t" << str_curr << endl;
-					float distance = distance_estimate(disparitymap, dis_delta);
 					cout << "Warning: Obstacles within 300 meters now!" << endl;
 				}
+				else
+					cout << "Security: No obstacles within 300 meters now!" << endl;
 			}
 		}
 		//system("pause");

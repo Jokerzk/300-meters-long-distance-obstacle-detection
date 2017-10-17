@@ -1,8 +1,6 @@
 #include "Preprocess.h"
 #include "Matrix.h"
-
 #ifdef Movidius
-
 int getimage_C(string str_prev, string str_curr, float img_prev[480][640], float img_curr[480][640])
 {
 	ifstream reader;
@@ -41,23 +39,24 @@ void Sobel_C(float src[80][240], float dest[80][240],int Xksize, int Yksize)
 {
 	float Xsumwin,Ysumwin;
 	int Xkneral[9] = { -1, 0, 1, -2, 0, 2, -1, 0, 1 };
-	int Ykneral[9] = { 1, 2, 1, 0, 0, 0, -1, -2, -1 };
-	for (int i = Yksize/2; i < 80 - Yksize/2; i++)
+	int Ykneral[9] = { -1, -2, -1, 0, 0, 0, 1, 2, 1 };
+	for (int i = Yksize / 2; i < 80 - Yksize / 2; i++)
 	{
-		for (int j = Yksize/2; j < 240 - Yksize/2; j++)
+		for (int j = Yksize / 2; j < 240 - Yksize; j++)
 		{
 			int index = 0;
-			Xsumwin = 0.0;Ysumwin = 0.0;
+			Xsumwin = 0.0; Ysumwin = 0.0;
 			for (int m = i - 1; m < i + 2; m++)
 			{
 				for (int n = j - 1; n < j + 2; n++)
 				{
-					Xsumwin += src[m][n] * Xkneral[index++];
-					Ysumwin += src[m][n] * Ykneral[index++];
+					Xsumwin += src[m][n] * Xkneral[index];
+					Ysumwin += src[m][n] * Ykneral[index];
+					index++;
 
 				}
 			}
-			dest[i][j] = sqrt(Xsumwin*Ysumwin);
+			dest[i][j] = sqrt(Xsumwin*Xsumwin + Ysumwin*Ysumwin);
 		}
 	}
 }
@@ -69,7 +68,7 @@ void Blur_C(float src[80][240], float dest[80][240], int width, int height, int 
 		for (int j = 0; j < width ; j++)
 		{
 			temp_sum = 0;
-			if(i<border_height / 2 || j < border_width / 2)
+			if (i<border_height / 2 || j < border_width / 2 || i > height - border_height / 2 || j > width - border_width / 2)
 				{
 					dest[i][j] = src[i][j];
 					continue;
@@ -83,29 +82,72 @@ void Blur_C(float src[80][240], float dest[80][240], int width, int height, int 
 							}
 					
 				}
-			dest[i][j] = temp_sum / border_width*border_height;
+			dest[i][j] = temp_sum / border_width/border_height;
 		}
 	}
 	//free(tmpdata);
 }
 
+//void resize_C(float src[80][240], float dest[YRESIZE][XRESIZE])
+//{
+//	float scale_x = float(XRESIZE) / 240;
+//	float scale_y = float(YRESIZE) / 80;
+//	for(int i = 0;i < XRESIZE;i++)
+//	{
+//		int sx = i*scale_x;
+//		sx = min(sx,240 - 1);
+//		for(int j = 0;j < YRESIZE;j++)
+//		{
+//			int sy = j*scale_y;
+//			sy = min(sy,80 - 1);
+//			dest[j][i] = src[sy][sx];
+//		}
+//	}
+//}
+
 void resize_C(float src[80][240], float dest[YRESIZE][XRESIZE])
 {
-	float scale_x = XRESIZE / 240;
-	float scale_y = YRESIZE / 80;
-	for(int i = 0;i < XRESIZE;i++)
+	float fx = (float)XRESIZE/ (float)240;
+	float fy = (float)YRESIZE / (double)80;
+	
+	for (int i = 0; i < YRESIZE; i++)
 	{
-		int sx = i*scale_x;
-		sx = min(sx,240 - 1);
-		for(int j = 0;j < YRESIZE;j++)
+		float srcy = i / fy;
+		int y = floor(srcy);
+		float v = srcy - y;
+		if (v < 0)
 		{
-			int sy = j*scale_y;
-			sy = min(sy,80 - 1);
-			dest[j][i] = src[sy][sx];
+			y = 0;
+			v = 0;
+		}
+		if (y >= 80 - 1)
+		{
+			y = 80 - 2;
+			v = 1;
+		}
+		float* srcData1 = src[y];
+		float* srcData2 = src[y + 1];
+
+		for (int j = 0; j < XRESIZE; j += 1)
+		{
+			float srcx = j / fx;
+			int x = floor(srcx);
+			float u = srcx - x;
+			if (x < 0)
+			{
+				x = 0;
+				u = 0;
+			}
+			if (x >= 240 - 1)
+			{
+				x = 240 - 2;
+				u = 1;
+			}
+			dest[i][j] = (1 - u)*(1 - v)*srcData1[x] + (1 - u)*v*srcData2[x] + u*(1 - v)*srcData1[x + 1] + u*v*srcData2[x + 1];
 		}
 	}
 }
-void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], int width, int height, bool distorted, float Qarray1[4], float Qarray2[4], float intrinsic[4], float distortion[4])
+void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], int width, int height, bool distorted, float Qarray1[4], float Qarray2[4], float intrinsic[4], float distortion[4], float prev_mat[26][240], float curr_mat[26][240])
 {
 	float euAngle0[3], euAngle2[3];
 	GetEulerAngle_C(Qarray1, euAngle0);
@@ -148,12 +190,13 @@ void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], in
 	imgcur = curr_mat;
 	}*/
 	//********** image rotation according to its Euler angles **********//
-	float newimg0[120][480] = { 0 }, newimg2[120][480] = { 0 };
-	float temp[3][3] = { 0 }, temp0[3][3] = { 0 }, temp2[3][3] = { 0 };
-	GetMatrixMultiple_3(M, rot_mat0, temp);
-	GetMatrixMultiple_3(temp, M_inv, temp0);
-	GetMatrixMultiple_3(M, rot_mat2, temp);
-	GetMatrixMultiple_3(temp, M_inv, temp2);
+	float newimg0[80][240] = { 0 }, newimg2[80][240] = { 0 };
+	float temp_0[3][3] = { 0 }, temp0[3][3] = { 0 }, temp_2[3][3] = { 0 }, temp2[3][3] = { 0 };
+	GetMatrixMultiple_3(M, rot_mat0, temp_0);
+	GetMatrixMultiple_3(temp_0, M_inv, temp0);
+
+	GetMatrixMultiple_3(M, rot_mat2, temp_2);
+	GetMatrixMultiple_3(temp_2, M_inv, temp2);
 	int border_width = 200, border_height = 200;
 
 	for (int i = border_height; i < height - border_height; ++i)
@@ -176,49 +219,28 @@ void ImagePreprocessing_C(float prev_img[480][640], float curr_img[480][640], in
 
 			float new_temp2[3] = { 0 };
 			GetMatrixMultiple_1(temp2, temp, new_temp2);
-			int r0 = new_temp2[1] / new_temp2[2];
-			int c0 = new_temp2[0] / new_temp2[2];
-			if (c0 >= 0 && c0 < 640 && r0 >= 0 && r0 < 480)
+			int r2 = new_temp2[1] / new_temp2[2];
+			int c2 = new_temp2[0] / new_temp2[2];
+			if (c2 >= 0 && c2 < 640 && r2 >= 0 && r2 < 480)
 			{
-				newimg2[i - border_height][j - border_width] = curr_img[r0][c0];
+				newimg2[i - border_height][j - border_width] = curr_img[r2][c2];
 			}
 		}
 	}
-	//preprocessimg_mat(newimg0, prev_mat);
-	//preprocessimg_mat(newimg2, curr_mat);
+	preprocessimg_mat_C(newimg0, prev_mat);
+	preprocessimg_mat_C(newimg2, curr_mat);
 }
 
-void preprocessimg_mat_C(cv::Mat src_mat, cv::Mat &dst)
+void preprocessimg_mat_C(float src_mat[80][240], float dest_mat[26][240])
 {
-	/*cv::blur(src_mat, src_mat, cv::Size(3, 11));
-	cv::Size small_sz;
-	small_sz.height = src_mat.rows / 3;
-	small_sz.width = src_mat.cols;
-	cv::resize(src_mat, dst, small_sz);
-	dst.convertTo(dst, CV_32FC1);
-	cv::normalize(dst, dst, 1, 0, CV_MINMAX);*/
-
-	Mat dst_x, dst_y;
-	blur(src_mat, src_mat, cv::Size(3, 11));
-	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 5);
-	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 5);
-	dst = Mat(src_mat.rows, src_mat.cols, CV_32FC1);
-	for (int i = 0; i < src_mat.rows; ++i)
-	{
-		for (int j = 0; j < src_mat.cols; ++j)
-		{
-			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j));
-		}
-	}
-	cv::Size small_sz;
-	small_sz.height = dst.rows / 3;
-	small_sz.width = dst.cols;
-	cv::resize(dst, dst, small_sz);
-	cv::normalize(dst, dst, 1, 0, CV_MINMAX);
-
+	float temp_blur[80][240] = { 0 }, temp_sobel[80][240] = { 0 }, temp_resize[26][240];
+	Blur_C(src_mat, temp_blur, 240, 80, 3, 11);
+	Sobel_C(temp_blur, temp_sobel, 3, 3);
+	resize_C(temp_sobel, temp_resize);
+	normalize_C(temp_resize, dest_mat, 240, 26, 1);
 }
 
-void normalize(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], const int width, const int height, const int normrange)
+void normalize_C(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], const int width, const int height, const int normrange)
 {
 	float maxval(0);
 	float minval(1000);
@@ -227,8 +249,8 @@ void normalize(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], co
 	{
 		for (int x = 0; x < width; x++)
 		{
-			if (maxval < input[x][y]) maxval = input[x][y];
-			if (minval > input[x][y]) minval = input[x][y];
+			if (maxval < input[y][x]) maxval = input[y][x];
+			if (minval > input[y][x]) minval = input[y][x];
 		}
 	}}
 	double range = maxval - minval;
@@ -237,7 +259,7 @@ void normalize(float input[YRESIZE][XRESIZE], float output[YRESIZE][XRESIZE], co
 	{
 		for (int x = 0; x < width; x++)
 		{
-			output[x][y] = ((normrange*(input[x][y] - minval)) / range);
+			output[y][x] = ((normrange*(input[y][x] - minval)) / range);
 		}
 	}
 }
@@ -291,9 +313,6 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 {
 	Vec3f euAngle_prev = GetEulerAngle(Qarray_prev);
 	Vec3f euAngle_curr = GetEulerAngle(Qarray_curr);
-
-	cout << "euAngle_prev:" << euAngle_prev[0] << euAngle_prev[1] << euAngle_prev[2] << endl;
-
 	cv::Mat M = cv::Mat(3, 3, CV_32FC1, float(0));
 	M.at<float>(0, 0) = intrinsic[0];
 	M.at<float>(0, 2) = intrinsic[2];
@@ -301,17 +320,14 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 	M.at<float>(1, 2) = intrinsic[3];
 	M.at<float>(2, 2) = 1;
 	cv::Mat inv_M = M.inv();
-
-	cout << "inv_M : " << inv_M << endl;
-
 	Vec3f cam_angle;
-	cam_angle[0] = euAngle_prev[1];//-atan(Vh/Vs)
+	cam_angle[0] = euAngle_prev[1];
 	cam_angle[1] = 0;
 	cam_angle[2] = euAngle_prev[0];
 	cv::Mat rot_mat0 = Eular2Rot(cam_angle);
 	cv::Mat inv_rot0 = rot_mat0.inv();
 
-	cam_angle[0] = euAngle_curr[1];//-atan(Vh/Vs)
+	cam_angle[0] = euAngle_curr[1];// +0.4 / 57.3;
 	cam_angle[1] = 0;// -1.5 / 57.3;
 	cam_angle[2] = euAngle_curr[0];
 	cv::Mat rot_mat1 = Eular2Rot(cam_angle);
@@ -335,6 +351,7 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 
 	cv::Mat temp0 = M * rot_mat0 * inv_M;
 	cv::Mat temp1 = M * rot_mat1 * inv_M;
+	cv::Mat temptest = M * rot_mat1;
 	int border_width = 200, border_height = 200;
 
 	for (int i = border_height; i < height - border_height; ++i)
@@ -364,17 +381,6 @@ void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool 
 		}
 	}
 
-	/*cv::Mat process = cv::Mat(80, 480, CV_8UC1, Scalar(0));
-	newimg0.copyTo(process(cv::Rect(0, 0, 240, 80)));
-	newimg2.copyTo(process(cv::Rect(480, 0, 240, 80)));
-	cv::Mat color_process;
-	cv::cvtColor(process, color_process, CV_GRAY2BGR);
-	cv::line(color_process, cv::Point2f(0, 40), cv::Point2f(480, 40), CV_RGB(255, 0, 0), 1);
-	cv::line(color_process, cv::Point2f(120, 0), cv::Point2f(120, 80), CV_RGB(255, 0, 0), 1);
-	cv::line(color_process, cv::Point2f(360, 0), cv::Point2f(360, 80), CV_RGB(255, 0, 0), 1);
-	imshow("process", color_process);
-	waitKey();*/
-	
 	preprocessimg_mat(newimg0, mat_prev);
 	preprocessimg_mat(newimg2, mat_curr);
 	
@@ -392,8 +398,22 @@ void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 
 	Mat dst_x, dst_y; 
 	blur(src_mat, src_mat, cv::Size(3, 11));
-	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 5);
-	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 5);
+	/*cv::Mat src_temp;
+	src_mat.convertTo(src_temp, CV_32FC1);
+	float src_tempf[80][240], dest_tempf[80][240];
+	for (int i = 0; i < 80; i++)
+	{
+		for (int j = 0; j < 240; j++)
+		{
+			src_tempf[i][j] = src_temp.at<float>(i, j);
+		}
+	}
+	Sobel_C(src_tempf, dest_tempf, 3, 3);
+	cout << "dest_tempf:" << "\n" << dest_tempf[20][120] << "\t" << dest_tempf[40][120] << endl;*/
+
+	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 3);
+	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 3);
+
 	dst = Mat(src_mat.rows, src_mat.cols,CV_32FC1);
 	for (int i = 0; i < src_mat.rows; ++i)
 	{
@@ -402,10 +422,24 @@ void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j));
 		}
 	}
+	
+	/*float dest_tempf[80][240], temp_resize[26][240];
+	for (int i = 0; i < 80; i++)
+	{
+		for (int j = 0; j < 240; j++)
+		{
+			dest_tempf[i][j] = dst.at<float>(i, j);
+		}
+	}
+	resize_C(dest_tempf, temp_resize);
+	Mat dst_resize = Mat(26, 240, CV_32FC1, temp_resize);
+	cout << "dst_resize:" << "\n" << dst_resize.at<float>(13, 140) << "\t" << dst_resize.at<float>(20, 140) << endl;*/
+
 	cv::Size small_sz;
 	small_sz.height = dst.rows / 3;
 	small_sz.width = dst.cols;
 	cv::resize(dst, dst, small_sz);
-	cv::normalize(dst, dst, 1, 0, CV_MINMAX);
+	//cout << "dst:" << "\n" << dst.at<float>(13, 140) << "\t" << dst.at<float>(20, 140) << endl;
+	cv::normalize(dst, dst, 1, 0, NORM_MINMAX);
 
 }

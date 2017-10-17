@@ -19,5 +19,7 @@ int getimage(string str_prev, vector <string> str_curr, cv::Mat &img_prev, vecto
 
 void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst);
 
+void GammaCorrection(Mat& src, Mat& dst, float fGamma);
+
 void ImagePreprocessing(Mat img_prev, Mat img_curr, int width, int height, bool distorted, vector<float> Qarray_prev, vector<float> Qarray_curr, float intrinsic[4], float distortion[4], Mat &mat_prev, Mat &mat_curr);
 #endif

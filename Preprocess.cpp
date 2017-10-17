@@ -292,17 +292,17 @@ void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 	cv::resize(src_mat, dst, small_sz);
 	dst.convertTo(dst, CV_32FC1);
 	cv::normalize(dst, dst, 1, 0, CV_MINMAX);*/
-
 	Mat dst_x, dst_y; 
 	blur(src_mat, src_mat, cv::Size(3, 11));
-	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 5);
-	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 5);
+	src_mat.convertTo(src_mat,CV_32FC1);
+	Sobel(src_mat, dst_x, CV_32FC1, 1, 0, 3);
+	Sobel(src_mat, dst_y, CV_32FC1, 0, 1, 3);
 	dst = Mat(src_mat.rows, src_mat.cols,CV_32FC1);
 	for (int i = 0; i < src_mat.rows; ++i)
 	{
 		for (int j = 0; j < src_mat.cols; ++j)
 		{
-			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j));
+			dst.at<float>(i, j) = sqrt(dst_x.at<float>(i, j)*dst_x.at<float>(i, j) + dst_y.at<float>(i, j)*dst_y.at<float>(i, j)) + src_mat.at<float>(i, j);
 		}
 	}
 	cv::Size small_sz;
@@ -395,3 +395,50 @@ void preprocessimg_mat(cv::Mat src_mat, cv::Mat &dst)
 //	cv::waitKey();
 //	return 0;
 //}
+void GammaCorrection(Mat& src, Mat& dst, float fGamma)
+{
+	CV_Assert(src.data);
+
+	// accept only char type matrices  
+	CV_Assert(src.depth() != sizeof(uchar));
+
+	// build look up table  
+	unsigned char lut[256];
+	for (int i = 0; i < 256; i++)
+	{
+		lut[i] = saturate_cast<uchar>(pow((float)(i / 255.0), fGamma) * 255.0f);
+	}
+
+	dst = src.clone();
+	const int channels = dst.channels();
+	switch (channels)
+	{
+	case 1:
+	{
+
+			  MatIterator_<uchar> it, end;
+			  for (it = dst.begin<uchar>(), end = dst.end<uchar>(); it != end; it++)
+				  //*it = pow((float)(((*it))/255.0), fGamma) * 255.0;  
+				  *it = lut[(*it)];
+
+			  break;
+	}
+	case 3:
+	{
+
+			  MatIterator_<Vec3b> it, end;
+			  for (it = dst.begin<Vec3b>(), end = dst.end<Vec3b>(); it != end; it++)
+			  {
+				  //(*it)[0] = pow((float)(((*it)[0])/255.0), fGamma) * 255.0;  
+				  //(*it)[1] = pow((float)(((*it)[1])/255.0), fGamma) * 255.0;  
+				  //(*it)[2] = pow((float)(((*it)[2])/255.0), fGamma) * 255.0;  
+				  (*it)[0] = lut[((*it)[0])];
+				  (*it)[1] = lut[((*it)[1])];
+				  (*it)[2] = lut[((*it)[2])];
+			  }
+
+			  break;
+
+	}
+	}
+}

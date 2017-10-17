@@ -1,10 +1,5 @@
 #include "long_distance_avoidance.h"
 
-#define SEARCHWAY
-
-int IMGHEIGHT;
-int IMGWIDTH;
-
 cv::Mat get_Rmatrix_from_Quaternion(vector<float> Qarray)
 {
 	Mat rotation_matrix = Mat(3, 3, CV_32FC1, Scalar(0));
@@ -18,8 +13,6 @@ cv::Mat get_Rmatrix_from_Quaternion(vector<float> Qarray)
 	rotation_matrix.at<float>(2, 2) = 1 - 2 * (pow(Qarray[1], 2) + pow(Qarray[2], 2));
 	rotation_matrix.at<float>(2, 0) = 2 * (Qarray[1] * Qarray[3] - Qarray[0] * Qarray[2]);
 	rotation_matrix.at<float>(2, 1) = 2 * (Qarray[3] * Qarray[2] + Qarray[0] * Qarray[1]);
-
-	//cout << rotation_matrix << endl;
 
 	return rotation_matrix;
 }
